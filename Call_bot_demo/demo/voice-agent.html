@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Agent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f7;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 600px;
+        }
+
+        .orb-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            margin-bottom: 48px;
+        }
+
+        #orb-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.8;
+            filter: blur(20px);
+        }
+
+        .orb-overlay {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+        }
+
+        .button-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .call-button {
+            background: white;
+            color: #1a1a1a;
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid #e5e5e5;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .call-button:hover {
+            background: #fafafa;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .call-button:active {
+            transform: scale(0.98);
+        }
+
+        .icon-circle {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .icon-circle.black {
+            background: #1a1a1a;
+        }
+
+        .icon-circle.blue {
+            background: #2563eb;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .icon-circle.green {
+            background: #10b981;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .status-indicator {
+            background: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid #e5e5e5;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #1a1a1a;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 32px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .controls.visible {
+            opacity: 1;
+        }
+
+        .control-button {
+            padding: 16px;
+            border-radius: 50%;
+            border: 1px solid #e5e5e5;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-button:hover {
+            background: #fafafa;
+        }
+
+        .control-button.muted {
+            background: #ef4444;
+            border-color: #ef4444;
+        }
+
+        .control-button.muted:hover {
+            background: #dc2626;
+        }
+
+        .end-call-button {
+            background: #ef4444;
+            color: white;
+            padding: 16px 24px;
+            border-radius: 50px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .end-call-button:hover {
+            background: #dc2626;
+        }
+
+        .error-message {
+            margin-bottom: 24px;
+            padding: 12px 24px;
+            background: #fee2e2;
+            border: 1px solid #fecaca;
+            border-radius: 50px;
+            color: #b91c1c;
+            font-size: 14px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* SVG Icons */
+        .icon {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
+        .icon.small {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Animated Orb -->
+        <div class="orb-container">
+            <canvas id="orb-canvas"></canvas>
+            <div class="orb-overlay"></div>
+            
+            <!-- Call Button -->
+            <div class="button-container">
+                <button id="call-button" class="call-button">
+                    <div class="icon-circle black">
+                        <svg class="icon" style="stroke: white;">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                            <line x1="12" y1="19" x2="12" y2="23"></line>
+                            <line x1="8" y1="23" x2="16" y2="23"></line>
+                        </svg>
+                    </div>
+                    <span>Call AI agent</span>
+                </button>
+
+                <div id="connecting-indicator" class="status-indicator hidden">
+                    <div class="icon-circle blue">
+                        <svg class="icon" style="stroke: white;">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                    </div>
+                    <span>Connecting...</span>
+                </div>
+
+                <div id="connected-indicator" class="status-indicator hidden">
+                    <div class="icon-circle green">
+                        <svg class="icon" style="stroke: white;">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                    </div>
+                    <span>Connected</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls" class="controls">
+            <button id="mute-button" class="control-button">
+                <svg id="mic-icon" class="icon small">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+                <svg id="mic-off-icon" class="icon small hidden">
+                    <line x1="1" y1="1" x2="23" y2="23"></line>
+                    <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+                    <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
+                </svg>
+            </button>
+
+            <button id="end-call-button" class="end-call-button">
+                <svg class="icon">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    <line x1="23" y1="1" x2="1" y2="23"></line>
+                </svg>
+                <span>End Call</span>
+            </button>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error-message" class="error-message"></div>
+
+        <!-- Footer -->
+        <div class="footer">
+            Powered by ElevenAgents
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const WS_URL = "ws://localhost:8000/call/ws/audio";
+        const SAMPLE_RATE = 16000;
+        // State
+        let socket = null;
+        let audioContext = null;
+        let scriptProcessor = null;
+        let callState = 'idle'; // idle, calling, connected
+        let isMuted = false;
+        let localStream = null;
+        let rotation = 0;
+        let animationFrameId = null;
+        let isBotProcessing = false; // Biến kiểm soát
+        // Elements
+        const callButton = document.getElementById('call-button');
+        const connectingIndicator = document.getElementById('connecting-indicator');
+        const connectedIndicator = document.getElementById('connected-indicator');
+        const controls = document.getElementById('controls');
+        const muteButton = document.getElementById('mute-button');
+        const endCallButton = document.getElementById('end-call-button');
+        const errorMessage = document.getElementById('error-message');
+        const micIcon = document.getElementById('mic-icon');
+        const micOffIcon = document.getElementById('mic-off-icon');
+        const canvas = document.getElementById('orb-canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Initialize canvas
+        const size = 400;
+        canvas.width = size;
+        canvas.height = size;
+
+        // Animated Orb
+        function drawOrb() {
+            ctx.clearRect(0, 0, size, size);
+
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const radius = size / 2;
+
+            // Create conic gradient
+            const gradient = ctx.createConicGradient(rotation, centerX, centerY);
+            gradient.addColorStop(0, '#4dd4d4');
+            gradient.addColorStop(0.2, '#3b9ec9');
+            gradient.addColorStop(0.35, '#2563eb');
+            gradient.addColorStop(0.5, '#60d4e8');
+            gradient.addColorStop(0.65, '#38bdf8');
+            gradient.addColorStop(0.8, '#1d4ed8');
+            gradient.addColorStop(1, '#4dd4d4');
+
+            // Draw circle
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Apply blur
+            ctx.filter = 'blur(60px)';
+            ctx.drawImage(canvas, 0, 0);
+            ctx.filter = 'none';
+
+            // Rotate
+            rotation += callState !== 'idle' ? 0.015 : 0.005;
+
+            animationFrameId = requestAnimationFrame(drawOrb);
+        }
+
+        // Start animation
+        drawOrb();
+
+        // Show error
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.add('visible');
+            setTimeout(() => {
+                errorMessage.classList.remove('visible');
+            }, 5000);
+        }
+
+        // Cleanup
+        function cleanup() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+        }
+
+        // Start call
+        async function startCall() {
+            // try {
+            //     callState = 'calling';
+            //     callButton.classList.add('hidden');
+            //     connectingIndicator.classList.remove('hidden');
+
+            //     // Check browser support
+            //     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            //         showError('Your browser does not support voice calls.');
+            //         resetToIdle();
+            //         return;
+            //     }
+
+            //     // Get microphone access
+            //     localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            //     // Simulate connection
+            //     setTimeout(() => {
+            //         callState = 'connected';
+            //         connectingIndicator.classList.add('hidden');
+            //         connectedIndicator.classList.remove('hidden');
+            //         controls.classList.add('visible');
+            //     }, 1500);
+            // } catch (err) {
+            //     let message = 'Failed to access microphone.';
+
+            //     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+            //         message = 'Microphone permission denied. Please allow access and try again.';
+            //     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+            //         message = 'No microphone found. Please connect a microphone.';
+            //     } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+            //         message = 'Microphone is already in use.';
+            //     }
+
+            //     showError(message);
+            //     resetToIdle();
+            //     console.error('Microphone access error:', err);
+            // }
+            try {
+                callState = 'calling';
+                callButton.classList.add('hidden');
+                connectingIndicator.classList.remove('hidden');
+
+                // 1. Khởi tạo WebSocket
+                socket = new WebSocket(WS_URL);
+                socket.binaryType = 'arraybuffer';
+
+                socket.onopen = async () => {
+                    console.log("🚀 Connected to Backend");
+                    // 2. Lấy Mic sau khi socket mở
+                    await initAudio();
+                    
+                    callState = 'connected';
+                    connectingIndicator.classList.add('hidden');
+                    connectedIndicator.classList.remove('hidden');
+                    controls.classList.add('visible');
+                };
+
+                socket.onmessage = async (event) => {
+    try {
+        // TRƯỜNG HỢP 1: Nhận tin nhắn trạng thái (JSON)
+        if (typeof event.data === "string") {
+            const msg = JSON.parse(event.data);
+            if (msg.type === "status") {
+                isBotProcessing = (msg.value === "processing");
+                console.log("🤖 Bot Status:", msg.value);
+            }
+            return; // Thoát ra vì đây không phải dữ liệu âm thanh
+        }
+
+        // TRƯỜNG HỢP 2: Nhận dữ liệu âm thanh (Binary)
+        if (event.data instanceof ArrayBuffer) {
+            // Chú ý: Dùng slice() để tạo bản sao tránh lỗi buffer đã bị giải phóng (neutered)
+            const audioData = event.data.slice(0); 
+
+            audioContext.decodeAudioData(audioData, (buffer) => {
+                const source = audioContext.createBufferSource();
+                source.buffer = buffer;
+                source.connect(audioContext.destination);
+                source.start(0);
+                console.log("🔊 Đang phát phản hồi...");
+            }, (e) => {
+                console.error("❌ Lỗi định dạng âm thanh:", e);
+            });
+        }
+    } catch (err) {
+        console.error("❌ Lỗi onmessage:", err);
+    }
+};
+
+                socket.onclose = () => {
+                    console.log("🔌 Socket Closed");
+                    // endCall();
+                };
+
+                socket.onerror = (err) => {
+                    showError("WebSocket Error. Make sure Backend is running.");
+                    // endCall();
+                };
+
+            } catch (err) {
+                showError("Could not start call: " + err.message);
+                resetToIdle();
+            }
+        }
+      async function initAudio() {
+        localStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: true
+        } 
+    });
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    
+    if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+    }
+
+    const source = audioContext.createMediaStreamSource(localStream);
+    
+    // Tạo thêm một GainNode để kích luồng (nhưng để volume = 1)
+    const gainNode = audioContext.createGain();
+    gainNode.gain.value = 1.0;
+
+    scriptProcessor = audioContext.createScriptProcessor(512, 1, 1);
+
+    scriptProcessor.onaudioprocess = (event) => {
+        if (isBotProcessing) return;
+        const inputData = event.inputBuffer.getChannelData(0);
+        
+        // KIỂM TRA TẠI CHỖ: Nếu bạn nói to, con số này phải > 0.1
+        let max = 0;
+        for(let i=0; i<inputData.length; i++) if(Math.abs(inputData[i]) > max) max = Math.abs(inputData[i]);
+        if (max > 0.02) console.log("🎤 Browser Mic Level:", max); 
+
+        const pcmData = new Int16Array(inputData.length);
+        for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(pcmData.buffer);
+        }
+    };
+
+    // Kết nối theo chuỗi: Source -> Gain -> Processor -> Destination
+    source.connect(gainNode);
+    gainNode.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+    
+    console.log("✅ Hệ thống Mic đã sẵn sàng!");
+}
+        // End call
+        function endCall() {
+            if (socket) socket.close();
+            if (scriptProcessor) scriptProcessor.disconnect();
+            if (audioContext) audioContext.close();
+            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            cleanup();
+            resetToIdle();
+            isMuted = false;
+            muteButton.classList.remove('muted');
+            micIcon.classList.remove('hidden');
+            micOffIcon.classList.add('hidden');
+        }
+
+        // Reset to idle state
+        function resetToIdle() {
+            callState = 'idle';
+            callButton.classList.remove('hidden');
+            connectingIndicator.classList.add('hidden');
+            connectedIndicator.classList.add('hidden');
+            controls.classList.remove('visible');
+        }
+
+        // Toggle mute
+        function toggleMute() {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    isMuted = !audioTrack.enabled;
+                    
+                    if (isMuted) {
+                        muteButton.classList.add('muted');
+                        micIcon.classList.add('hidden');
+                        micOffIcon.classList.remove('hidden');
+                        micOffIcon.style.stroke = 'white';
+                    } else {
+                        muteButton.classList.remove('muted');
+                        micIcon.classList.remove('hidden');
+                        micOffIcon.classList.add('hidden');
+                    }
+                }
+            }
+        }
+
+        // Event listeners
+        callButton.addEventListener('click', startCall);
+        endCallButton.addEventListener('click', endCall);
+        muteButton.addEventListener('click', toggleMute);
+    </script>
+</body>
+</html>
